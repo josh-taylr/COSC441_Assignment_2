@@ -76,7 +76,7 @@ bounded_buffer_remove_first(bounded_buffer * p)
   return x;
 }
 
-#ifdef TEST
+#ifdef TEST2
 
 #define N_PRODUCERS 10
 #define N_ITEMS_PER_PRODUCER 10

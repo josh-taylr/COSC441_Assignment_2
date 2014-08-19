@@ -1,22 +1,16 @@
 /* 
- * File:    pipe1.c 
- * Author:  Josh Taylor 
+ * File: pipe100.c 
+ * Author: Josh Taylor 
  * Created: 15 August, 2014 
  *
- * Uses the GNU pipe functions to send individual floating point number between 
- * threads.
  * 
- * Simple program to  to investigate the speed of passing information between 
- * two threads. The producer thread generates 1,000,000,000 random floating 
- * point numbers. The consumer thread receives 1,000,000,000 floating point 
- * number and summarises them.
  */
 
-// #include <sys/types.h>
+#include <sys/types.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
-// #include <unistd.h>
 #include <Math.h>
 
 int const Number_Count = 1000*1000;
@@ -37,21 +31,20 @@ void *producer(void *argument)
     double const recip_d /* 1/2 147 483 123.0 */ =
     0.00000000046566140114899519981000567798175892812360;
 
-    double w; /* The random number */
+    double w[100]; /* The random number */
+    int i, j; /* Loop counter */
+    int fd = *((int *) argument); /* */
 
-    int i; /* Loop counter */
-
-    int fd = *((int *) argument);
-
-    for (i = 0; i < Number_Count; i++) {
-        w  = recip_a * (double)(a = (int)((a * 11600LL) % 2147483579));
-        w += recip_b * (double)(b = (int)((b * 47003LL) % 2147483543));
-        w += recip_c * (double)(c = (int)((c * 23000LL) % 2147483423));
-        w += recip_d * (double)(d = (int)((d * 33000LL) % 2147483123));
-        if (w >= 2.0) w -= 2.0;
-        if (w >= 1.0) w -= 1.0;
-
-        /* <<< somehow send w to the other thread >>> */
+    for (i = 0; i < Number_Count;) {
+        for (j=0; j<Batch_Size; i++, j++) {
+            w[j] = recip_a * (double)(a = (int)((a * 11600LL) % 2147483579));
+            w[j] += recip_b * (double)(b = (int)((b * 47003LL) % 2147483543));
+            w[j] += recip_c * (double)(c = (int)((c * 23000LL) % 2147483423));
+            w[j] += recip_d * (double)(d = (int)((d * 33000LL) % 2147483123));
+            if (w[j] >= 2.0) w[j] -= 2.0;
+            if (w[j] >= 1.0) w[j] -= 1.0;  
+        }
+        /* <lt;lt; somehow send w to the other thread >>> */
         write(fd, &w, sizeof w);
     }
 
@@ -61,7 +54,7 @@ void *producer(void *argument)
 void *consumer(void *argument) 
 {
     int i;
-    double x, v;
+    double x[100], v;
     double mean = 0.0, sum2 = 0.0;
 
     int fd = *((int *) argument);
@@ -69,9 +62,11 @@ void *consumer(void *argument)
     for (i = 0; i < Number_Count; i++) {
 
         /* <lt;lt; somehow receive x from the other thread >>> */
-        read(fd, &x, sizeof x);
+        if ((i%100) == 0) {
+            read(fd, &x, sizeof x);
+        }
 
-        v = (x - mean)/(i+1);
+        v = (x[i%100] - mean)/(i+1);
         sum2 += ((i+1)*v)*(i*v);
         mean += v;
     }

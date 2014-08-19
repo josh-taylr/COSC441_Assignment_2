@@ -1,27 +1,24 @@
 /* 
- * File:    pipe1.c 
+ * File:    bbuf1.c 
  * Author:  Josh Taylor 
  * Created: 15 August, 2014 
  *
- * Uses the GNU pipe functions to send individual floating point number between 
- * threads.
  * 
- * Simple program to  to investigate the speed of passing information between 
- * two threads. The producer thread generates 1,000,000,000 random floating 
- * point numbers. The consumer thread receives 1,000,000,000 floating point 
- * number and summarises them.
  */
 
-// #include <sys/types.h>
+#include <sys/types.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
-// #include <unistd.h>
 #include <Math.h>
+#include "bbuf.h"
 
 int const Number_Count = 1000*1000;
 
-void *producer(void *argument) 
+static bounded_buffer bb;
+
+void *producer() 
 {
     int a =  632559378;  /* \ Wichmann-Hill (2006) */
     int b = 1436901506;  /* | 4-cycle random */
@@ -41,8 +38,6 @@ void *producer(void *argument)
 
     int i; /* Loop counter */
 
-    int fd = *((int *) argument);
-
     for (i = 0; i < Number_Count; i++) {
         w  = recip_a * (double)(a = (int)((a * 11600LL) % 2147483579));
         w += recip_b * (double)(b = (int)((b * 47003LL) % 2147483543));
@@ -51,25 +46,23 @@ void *producer(void *argument)
         if (w >= 2.0) w -= 2.0;
         if (w >= 1.0) w -= 1.0;
 
-        /* <<< somehow send w to the other thread >>> */
-        write(fd, &w, sizeof w);
+        /* <lt;lt; somehow send w to the other thread >>> */
+        bounded_buffer_add_last(&bb, w);
     }
 
     return NULL;
 }
 
-void *consumer(void *argument) 
+void *consumer() 
 {
     int i;
     double x, v;
     double mean = 0.0, sum2 = 0.0;
 
-    int fd = *((int *) argument);
-
     for (i = 0; i < Number_Count; i++) {
 
         /* <lt;lt; somehow receive x from the other thread >>> */
-        read(fd, &x, sizeof x);
+        x = bounded_buffer_remove_first(&bb);
 
         v = (x - mean)/(i+1);
         sum2 += ((i+1)*v)*(i*v);
@@ -84,20 +77,15 @@ int main (void)
 {
     int rc;
     pthread_t p, c;
-    int mypipe[2];
      
-    /* Create the pipe. */
-    if (pipe (mypipe)) {
-       printf("Pipe failed.\n");
-       return EXIT_FAILURE;
-    }
+    bounded_buffer_init(&bb);
 
-    rc = pthread_create(&c, NULL, consumer, (void *)&mypipe[0]);
+    rc = pthread_create(&c, NULL, consumer, 0);
     if (rc != 0) {
         printf("Failed to create comsumer.\n");
         exit(EXIT_FAILURE);
     }
-    rc = pthread_create(&p, NULL, producer, (void *)&mypipe[1]);
+    rc = pthread_create(&p, NULL, producer, 0);
     if (rc != 0) {
         printf("Failed to create producer.\n");
         exit(EXIT_FAILURE);
@@ -113,8 +101,7 @@ int main (void)
         exit(EXIT_FAILURE);
     }
 
-    close(mypipe[0]);
-    close(mypipe[1]);
+    bounded_buffer_destroy(&bb);
 
     return EXIT_SUCCESS;
 }

@@ -1,25 +1,17 @@
-/* 
- * File:    pipe1.c 
- * Author:  Josh Taylor 
- * Created: 15 August, 2014 
- *
- * Uses the GNU pipe functions to send individual floating point number between 
- * threads.
- * 
- * Simple program to  to investigate the speed of passing information between 
- * two threads. The producer thread generates 1,000,000,000 random floating 
- * point numbers. The consumer thread receives 1,000,000,000 floating point 
- * number and summarises them.
- */
-
-// #include <sys/types.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
-// #include <unistd.h>
 #include <Math.h>
+#include <sys/msg.h>
+#include <sys/ipc.h>
+#include <sys/types.h>
 
 int const Number_Count = 1000*1000;
+
+struct msgbuf {
+    long    mtype;          /* Message type */
+    double  num;        /* The randomely generated number. */
+};
 
 void *producer(void *argument) 
 {
@@ -41,7 +33,10 @@ void *producer(void *argument)
 
     int i; /* Loop counter */
 
-    int fd = *((int *) argument);
+    struct msgbuf msg;
+    msg.mtype = 1;
+    int length = sizeof(struct msgbuf) - sizeof(long);
+    int msg_queue_id = *((int *) argument);
 
     for (i = 0; i < Number_Count; i++) {
         w  = recip_a * (double)(a = (int)((a * 11600LL) % 2147483579));
@@ -51,8 +46,13 @@ void *producer(void *argument)
         if (w >= 2.0) w -= 2.0;
         if (w >= 1.0) w -= 1.0;
 
-        /* <<< somehow send w to the other thread >>> */
-        write(fd, &w, sizeof w);
+        /* <lt;lt; somehow send w to the other thread >>> */  
+        msg.num = w;
+
+        if((msgsnd(msg_queue_id, &msg, length, 0)) == -1) {
+            perror("msgsnd");
+            exit(EXIT_FAILURE);
+        }
     }
 
     return NULL;
@@ -61,17 +61,22 @@ void *producer(void *argument)
 void *consumer(void *argument) 
 {
     int i;
-    double x, v;
+    double v;
     double mean = 0.0, sum2 = 0.0;
 
-    int fd = *((int *) argument);
+    struct msgbuf msg;
+    int length = sizeof(struct msgbuf) - sizeof(long);
+    int msg_queue_id = *((int *) argument);
 
     for (i = 0; i < Number_Count; i++) {
 
         /* <lt;lt; somehow receive x from the other thread >>> */
-        read(fd, &x, sizeof x);
+        if((msgrcv(msg_queue_id, &msg, length, 1,  0)) == -1) {
+            perror("msgrcv");
+            exit(EXIT_FAILURE);
+        }
 
-        v = (x - mean)/(i+1);
+        v = (msg.num - mean)/(i+1);
         sum2 += ((i+1)*v)*(i*v);
         mean += v;
     }
@@ -84,20 +89,24 @@ int main (void)
 {
     int rc;
     pthread_t p, c;
-    int mypipe[2];
+    key_t key;
+    int msg_queue_id;
      
-    /* Create the pipe. */
-    if (pipe (mypipe)) {
-       printf("Pipe failed.\n");
-       return EXIT_FAILURE;
+    /* Create unique key via call to ftok(). */
+    key = ftok(".", 'a');
+
+    /* Open the queue. Create if nevessary. */
+    if ((msg_queue_id = msgget(key, IPC_CREAT | 0660)) == -1) {
+        perror("msgget");
+        exit(EXIT_FAILURE);
     }
 
-    rc = pthread_create(&c, NULL, consumer, (void *)&mypipe[0]);
+    rc = pthread_create(&c, NULL, consumer, (void *)&msg_queue_id);
     if (rc != 0) {
         printf("Failed to create comsumer.\n");
         exit(EXIT_FAILURE);
     }
-    rc = pthread_create(&p, NULL, producer, (void *)&mypipe[1]);
+    rc = pthread_create(&p, NULL, producer, (void *)&msg_queue_id);
     if (rc != 0) {
         printf("Failed to create producer.\n");
         exit(EXIT_FAILURE);
@@ -113,8 +122,8 @@ int main (void)
         exit(EXIT_FAILURE);
     }
 
-    close(mypipe[0]);
-    close(mypipe[1]);
+    /* Remove the message queue. */
+    msgctl(msg_queue_id, IPC_RMID, 0);
 
     return EXIT_SUCCESS;
 }

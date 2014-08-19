@@ -1,10 +1,13 @@
 CC=gcc
-FLAGS=-W -Wall -ansi -pedantic -O2 -I./inc -Wno-long-long
+FLAGS=-W -Wall -ansi -pedantic -O4 -I./inc -std=c11
 
-PROGFILES=bbuf ctime pipe
+SRC=./src
+OBJ=./obj
+PROGFILES=ctime (buff)
 
-build: $(PROGFILES)
-	
+%: $(SRC)/ctime.c
+	$(CC) $(FLAGS) $< -o ./$@
+
 %: src/%.c 
 	$(CC) $(FLAGS) $< -o ./$@
 
