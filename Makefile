@@ -11,5 +11,19 @@ PROGFILES=ctime (buff)
 %: src/%.c 
 	$(CC) $(FLAGS) $< -o ./$@
 
+pipe1: $(SRC)/pipe1.c
+	$(CC) $(FLAGS) $< -o ./$@
+
+pipe100:
+	$(CC) $(FLAGS) $< -o ./$@
+bbuf1:
+	$(CC) $(FLAGS) $< -o ./$@
+bbuf100:
+	$(CC) $(FLAGS) $< -o ./$@
+mq1:
+	$(CC) $(FLAGS) $< -o ./$@
+mq100:
+	$(CC) $(FLAGS) $< -o ./$@
+
 clean:
 	rm $(PROGFILES)
