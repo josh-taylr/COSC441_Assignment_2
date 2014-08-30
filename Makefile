@@ -1,29 +1,19 @@
 CC=gcc
-FLAGS=-W -Wall -ansi -pedantic -O4 -I./inc -std=c11
+FLAGS=-W -Wall -ansi -pedantic -O0 -I./inc -std=c11 -g
 
 SRC=./src
-OBJ=./obj
-PROGFILES=ctime (buff)
+PROGFILES=ctime pipe1 pipe100 bbuf1 bbuf100 mq1 mq100
 
-%: $(SRC)/ctime.c
-	$(CC) $(FLAGS) $< -o ./$@
+build: $(PROGFILES)
 
-%: src/%.c 
-	$(CC) $(FLAGS) $< -o ./$@
+%: $(SRC)/%.c
+	$(CC) $(FLAGS) $< -o $@
 
-pipe1: $(SRC)/pipe1.c
-	$(CC) $(FLAGS) $< -o ./$@
+bbuf1: $(SRC)/bbuf1.c $(SRC)/bbuf.c
+	$(CC) $(FLAGS) -DT=double $^ -o $@
 
-pipe100:
-	$(CC) $(FLAGS) $< -o ./$@
-bbuf1:
-	$(CC) $(FLAGS) $< -o ./$@
-bbuf100:
-	$(CC) $(FLAGS) $< -o ./$@
-mq1:
-	$(CC) $(FLAGS) $< -o ./$@
-mq100:
-	$(CC) $(FLAGS) $< -o ./$@
+bbuf100: $(SRC)/bbuf100.c $(SRC)/bbuf.c
+	$(CC) $(FLAGS) -DT=double* $^ -o $@
 
 clean:
 	rm $(PROGFILES)

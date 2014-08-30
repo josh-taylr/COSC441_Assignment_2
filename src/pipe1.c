@@ -12,15 +12,24 @@
  * number and summarises them.
  */
 
-// #include <sys/types.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
-// #include <unistd.h>
+#include <unistd.h>
 #include <Math.h>
 
-int const Number_Count = 1000*1000;
+int const Number_Count = 1000*1000*1000;
 
+/*
+ * Generates random floating point numbers and writes them two a pipe. The GNU 
+ * pipe function is used to facilitate this task. The constant Number_Count 
+ * defines the number of random numbers written.
+ *
+ * @param argument Pointer to an integer representing the file descriptor of the
+ *                 pipe to write to.
+ *
+ * @return Will always return NULL.
+ */
 void *producer(void *argument) 
 {
     int a =  632559378;  /* \ Wichmann-Hill (2006) */
@@ -37,11 +46,11 @@ void *producer(void *argument)
     double const recip_d /* 1/2 147 483 123.0 */ =
     0.00000000046566140114899519981000567798175892812360;
 
-    double w; /* The random number */
+    double w; /* The random number. */
 
-    int i; /* Loop counter */
+    int i; /* Loop counter. */
 
-    int fd = *((int *) argument);
+    int fd = *((int *) argument); /* File descriptor of pipe to write to. */
 
     for (i = 0; i < Number_Count; i++) {
         w  = recip_a * (double)(a = (int)((a * 11600LL) % 2147483579));
@@ -51,13 +60,26 @@ void *producer(void *argument)
         if (w >= 2.0) w -= 2.0;
         if (w >= 1.0) w -= 1.0;
 
-        /* <<< somehow send w to the other thread >>> */
+        /* Using GNU's pipe function to send the number to the other thread. */
         write(fd, &w, sizeof w);
     }
 
     return NULL;
 }
 
+/*
+ * Reads floating point numbers from a pipe and sumurise them. The GNU pipe 
+ * function is used to facilitate this task. The constant Number_Count defines 
+ * the number of random numbers read. The summary consists of the mean and 
+ * standard diviation of the numbers recieved. A simplified version of Spicer's 
+ * provisional means algorithm is used when calulating the mean and standard
+ * diviation. 
+ *
+ * @param argument Pointer to an integer representing the file descriptor of the
+ *                 pipe to read from.
+ *
+ * @return Will always return NULL.
+ */
 void *consumer(void *argument) 
 {
     int i;
@@ -80,6 +102,12 @@ void *consumer(void *argument)
     return NULL;
 }
 
+/*
+ * Creates a producer and consumer thread. Each is given a file descriptor for 
+ * their appropriate end of the pipe. 
+ *
+ * @return Returns 0 on sussess, and 1 on failure.
+ */
 int main (void)
 {
     int rc;
@@ -92,12 +120,12 @@ int main (void)
        return EXIT_FAILURE;
     }
 
-    rc = pthread_create(&c, NULL, consumer, (void *)&mypipe[0]);
+    rc = pthread_create(&c, NULL, consumer, &(mypipe[0]));
     if (rc != 0) {
         printf("Failed to create comsumer.\n");
         exit(EXIT_FAILURE);
     }
-    rc = pthread_create(&p, NULL, producer, (void *)&mypipe[1]);
+    rc = pthread_create(&p, NULL, producer, &(mypipe[1]));
     if (rc != 0) {
         printf("Failed to create producer.\n");
         exit(EXIT_FAILURE);
